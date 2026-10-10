@@ -1,4 +1,6 @@
 # vLLM Couroutines Package
+![vLLM](https://img.shields.io/badge/vLLM-GPU_Inference-FF6F00?style=flat)
+![OpenAI](https://img.shields.io/badge/LLM-OpenAI-lightgrey) 
 
 An installable asynchronous chat client and dataset runner for a running vLLM server's OpenAI-compatible API. It accepts user-provided chat prompts, writes every response in input order, and records a run manifest. It does not start vLLM or score model answers.
 
