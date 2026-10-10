@@ -20,7 +20,7 @@ class _JSONValueFormatter(Formatter):
 
 
 class PromptSerializer:
-    """Turn mapping records into system/user chat messages with format strings.
+    """Turn mapping records into chat messages using format-string templates.
 
     Templates use Python's format-string syntax. Top-level fields use
     ``{field}``; nested mappings and sequences use item access such as
@@ -28,11 +28,19 @@ class PromptSerializer:
     as JSON so structured source fields remain unambiguous in the prompt.
     """
 
-    def __init__(self, user_template: str, system_template: str | None = None) -> None:
+    def __init__(
+        self,
+        user_template: str,
+        system_template: str | None = None,
+        assistant_template: str | None = None,
+    ) -> None:
         if not user_template.strip():
             raise ValueError("user_template must not be empty")
+        if assistant_template is not None and not assistant_template.strip():
+            raise ValueError("assistant_template must not be empty when provided")
         self.user_template = user_template
         self.system_template = system_template
+        self.assistant_template = assistant_template
         self._formatter = _JSONValueFormatter()
 
     def _render(self, template: str, record: Mapping[str, object]) -> str:
@@ -51,4 +59,11 @@ class PromptSerializer:
         messages.append(
             {"role": "user", "content": self._render(self.user_template, record)}
         )
+        if self.assistant_template is not None:
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": self._render(self.assistant_template, record),
+                }
+            )
         return messages
