@@ -14,9 +14,13 @@ import platform
 from typing import cast
 
 from .client import ChatPrompt, VLLMChatClient
+from .serializer import PromptSerializer
 
 
-def _load_dataset(path: Path) -> list[dict[str, object]]:
+def _load_dataset(
+    path: Path,
+    serializer: PromptSerializer | None = None,
+) -> list[dict[str, object]]:
     records: list[dict[str, object]] = []
     seen_ids: set[str] = set()
 
@@ -32,25 +36,35 @@ def _load_dataset(path: Path) -> list[dict[str, object]]:
             if not isinstance(record, dict):
                 raise ValueError(f"Line {line_number} must contain a JSON object")
             record_id = record.get("id")
-            messages = record.get("messages")
             if not isinstance(record_id, str) or not record_id.strip():
                 raise ValueError(f"Line {line_number} must have a non-empty string 'id'")
             if record_id in seen_ids:
                 raise ValueError(f"Duplicate id {record_id!r} on line {line_number}")
-            if not isinstance(messages, list) or not messages:
-                raise ValueError(f"Line {line_number} must have a non-empty 'messages' list")
-            for message in messages:
-                if (
-                    not isinstance(message, dict)
-                    or not isinstance(message.get("role"), str)
-                    or not isinstance(message.get("content"), str)
-                ):
+
+            if serializer is not None:
+                try:
+                    messages = serializer.serialize(record)
+                except ValueError as error:
+                    raise ValueError(f"Line {line_number}: {error}") from error
+            else:
+                messages = record.get("messages")
+                if not isinstance(messages, list) or not messages:
                     raise ValueError(
-                        f"Each message on line {line_number} must have string 'role' and 'content'"
+                        f"Line {line_number} must have a non-empty 'messages' list "
+                        "or be used with --user-template"
                     )
+                for message in messages:
+                    if (
+                        not isinstance(message, dict)
+                        or not isinstance(message.get("role"), str)
+                        or not isinstance(message.get("content"), str)
+                    ):
+                        raise ValueError(
+                            f"Each message on line {line_number} must have string 'role' and 'content'"
+                        )
 
             seen_ids.add(record_id)
-            records.append({"id": record_id, "messages": messages})
+            records.append({"id": record_id, "messages": messages, "input": record})
 
     if not records:
         raise ValueError("The input dataset contains no records")
@@ -96,6 +110,14 @@ def main() -> None:
     parser.add_argument("--temperature", required=True, type=float)
     parser.add_argument("--top-p", required=True, type=float)
     parser.add_argument("--seed", required=True, type=int)
+    parser.add_argument(
+        "--user-template",
+        help="Python format-string template for converting record fields into a user message",
+    )
+    parser.add_argument(
+        "--system-template",
+        help="Optional Python format-string template for a system message; requires --user-template",
+    )
     parser.add_argument("--concurrency", type=int, default=8)
     parser.add_argument("--num-chunks", type=int, default=30)
     parser.add_argument("--timeout", type=float, default=30.0)
@@ -107,6 +129,9 @@ def main() -> None:
     )
     parser.add_argument("--overwrite", action="store_true", help="Allow replacing existing output files")
     args = parser.parse_args()
+
+    if args.system_template is not None and args.user_template is None:
+        parser.error("--system-template requires --user-template")
 
     if args.max_tokens < 1:
         parser.error("--max-tokens must be at least 1")
@@ -129,8 +154,15 @@ def main() -> None:
     if not args.overwrite and (args.output.exists() or manifest_path.exists()):
         parser.error("output already exists; choose another path or pass --overwrite")
 
+    serializer = None
+    if args.user_template is not None:
+        try:
+            serializer = PromptSerializer(args.user_template, args.system_template)
+        except ValueError as error:
+            parser.error(str(error))
+
     try:
-        records = _load_dataset(args.input)
+        records = _load_dataset(args.input, serializer)
     except (OSError, ValueError) as error:
         parser.error(str(error))
 
@@ -148,7 +180,12 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8") as output_file:
         for record, response in zip(records, responses, strict=True):
-            output_record = {**record, "response": response}
+            source_record = record["input"]
+            output_record = {
+                **cast(dict[str, object], source_record),
+                "messages": record["messages"],
+                "response": response,
+            }
             output_file.write(json.dumps(output_record, ensure_ascii=False) + "\n")
 
     manifest = {
@@ -160,6 +197,11 @@ def main() -> None:
         "model": args.model,
         "base_url": args.base_url,
         "server_version": args.server_version,
+        "prompt_serialization": {
+            "mode": "templates" if serializer is not None else "input_messages",
+            "user_template": args.user_template,
+            "system_template": args.system_template,
+        },
         "generation": {
             "max_tokens": args.max_tokens,
             "temperature": args.temperature,
