@@ -1,4 +1,4 @@
-# vLLM Couroutines
+# vLLM Couroutines Package
 
 An installable asynchronous chat client and dataset runner for a running vLLM server's OpenAI-compatible API. It accepts user-provided chat prompts, writes every response in input order, and records a run manifest. It does not start vLLM or score model answers.
 
