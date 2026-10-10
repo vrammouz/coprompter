@@ -7,19 +7,17 @@ An installable asynchronous chat client and dataset runner for a running vLLM se
 ## Project structure
 
 ```text
-vllm-async-vr/
+coprompter/
 ├── pyproject.toml                 # Build metadata, dependencies, CLI entry point
 ├── README.md                      # Setup, usage, and API guide
 ├── src/
-│   └── vllm_async_vr/
+│   └── coprompter/
 │       ├── __init__.py            # Public package exports
 │       ├── __main__.py            # Enables python -m vllm_async_vr
 │       ├── cli.py                 # Dataset runner and command-line options
 │       ├── client.py              # Async vLLM/OpenAI-compatible API client
 │       ├── serializer.py          # Dataset-record-to-chat-prompt templates
 │       └── py.typed               # Marks inline type information for type checkers
-├── tests/
-│   └── test_serializer.py         # Serializer and dataset-loading tests
 ├── data/                          # User-created JSONL inputs (created when needed)
 └── results/                       # Prediction files and manifests (created at runtime)
 ```
