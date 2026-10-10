@@ -15,8 +15,8 @@ An installable asynchronous chat client and dataset runner for a running vLLM se
 Set up the client environment from the package directory (`code/vllm-async-vr` in this repository):
 
 ```bash
-conda create -n vllm-async-vr python=3.11 -y
-conda activate vllm-async-vr
+conda create -n vllm-async python=3.11 -y
+conda activate vllm-async
 python -m pip install --upgrade pip
 python -m pip install -e .
 vllm-async-vr --help
@@ -56,7 +56,7 @@ Keep IDs stable so results can be joined to source examples and labels. Blank li
 
 Follow these steps from the package directory (`code/vllm-async-vr` in this repository). The commands use `meta-llama/Llama-3.1-8B-Instruct` as an example; replace it with a model you can access, using the same model ID when starting vLLM and running the client.
 
-1. In the activated `vllm-async-vr` Conda environment, create a small JSONL dataset:
+1. In the activated `vllm-async` Conda environment, create a small JSONL dataset:
 
 ```bash
 mkdir -p data results
@@ -82,7 +82,7 @@ Wait for the server to report that it is ready.
 3. In terminal 2, from the package directory, activate the client environment and run the dataset:
 
 ```bash
-conda activate vllm-async-vr
+conda activate vllm-async
 vllm-async-vr \
     --input data/test.jsonl \
     --output results/run-001.jsonl \
