@@ -18,7 +18,7 @@ python -m pip install .
 
 For editable development installs, use `python -m pip install -e .` from this directory.
 
-## Dataset format
+## Test Dataset format (not required)
 
 Each non-empty line is one JSON object with a unique, non-empty string `id` and a non-empty list of text chat `messages`. Each message must have string `role` and `content` fields.
 
