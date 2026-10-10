@@ -10,33 +10,55 @@ An installable asynchronous chat client and dataset runner for a running vLLM se
 - A running vLLM server with the requested model loaded
 - An input dataset in JSON Lines (`.jsonl`) format
 
-Install the package in the client environment; install and configure vLLM separately in the server environment.
+## Environment setup
+
+Set up the client environment from the package directory (`code/vllm-async-vr` in this repository):
 
 ```bash
-python -m pip install .
+conda create -n vllm-async python=3.11 -y
+conda activate vllm-async
+python -m pip install --upgrade pip
+python -m pip install -e .
+vllm-async --help
 ```
 
-For editable development installs, use `python -m pip install -e .` from this directory.
+The client environment installs the OpenAI client; it does not install vLLM or CUDA components.
 
-## Test Dataset format (not required)
+Create a separate Conda environment on the GPU/server machine, then install vLLM into it using the official installation command for your operating system, Python version, CUDA/ROCm setup, and PyTorch requirements. These requirements vary by vLLM release, so use the matching [vLLM installation guide](https://docs.vllm.ai/en/latest/getting_started/installation/).
 
-Each non-empty line is one JSON object with a unique, non-empty string `id` and a non-empty list of text chat `messages`. Each message must have string `role` and `content` fields.
+```bash
+conda create -n vllm-server python=3.11 -y
+conda activate vllm-server
+# Install vLLM here using the command for your platform from its installation guide.
+```
+
+If the selected model requires Hugging Face authentication, configure `HF_TOKEN` securely in the server environment before launching vLLM.
+
+## Dataset format
+
+Each non-empty line is one JSON object with a unique, non-empty string `id`. You can provide ready-made `messages`, or keep your own dataset fields and use `--user-template` to turn them into a prompt. A message is an object with string `role` and `content` fields.
 
 ```jsonl
 {"id":"item-001","messages":[{"role":"system","content":"Answer briefly."},{"role":"user","content":"What is the capital of France?"}]}
 {"id":"item-002","messages":[{"role":"user","content":"What is the capital of Japan?"}]}
 ```
 
-Create a JSONL file for any dataset by serializing one record per prompt. Keep the IDs stable so outputs can be joined reliably to source examples and labels. Blank lines are ignored. Duplicate IDs and malformed rows are rejected before requests are sent.
+For example, an existing review dataset can keep its own schema:
+
+```jsonl
+{"id":"review-001","product":"Notebook","review":{"title":"Good paper","text":"The pages are smooth."},"rating":5}
+{"id":"review-002","product":"Pen","review":{"title":"Leaks","text":"Ink leaked in my bag."},"rating":1}
+```
+
+Keep IDs stable so results can be joined to source examples and labels. Blank lines are ignored, and duplicate or missing IDs are rejected before requests are sent. The CLI currently reads JSONL; convert CSV or other source formats to one JSON object per line before running it.
 
 ## Run
 
 Follow these steps from the package directory (`code/vllm-async-vr` in this repository). The commands use `meta-llama/Llama-3.1-8B-Instruct` as an example; replace it with a model you can access, using the same model ID when starting vLLM and running the client.
 
-1. Install the client package and create a small test JSONL dataset (optional):
+1. In the activated `vllm-async` Conda environment, create a small JSONL dataset:
 
 ```bash
-python -m pip install -e .
 mkdir -p data results
 cat > data/test.jsonl <<'EOF'
 {"id":"item-001","messages":[{"role":"system","content":"Answer briefly."},{"role":"user","content":"What is the capital of France?"}]}
@@ -44,11 +66,12 @@ cat > data/test.jsonl <<'EOF'
 EOF
 ```
 
-Replace these example records with one JSON object per line from your own dataset. Each record needs a unique `id` and a `messages` list.
+Replace these example records with one JSON object per line from your own dataset. Each record needs a unique `id`; you can either provide a `messages` list or use templates as shown below.
 
-2. In terminal 1, start the vLLM server with the model to evaluate:
+2. In terminal 1, activate the `vllm-server` Conda environment and start vLLM with the model to evaluate:
 
 ```bash
+conda activate vllm-server
 vllm serve meta-llama/Llama-3.1-8B-Instruct \
     --host 127.0.0.1 \
     --port 8000
@@ -56,9 +79,10 @@ vllm serve meta-llama/Llama-3.1-8B-Instruct \
 
 Wait for the server to report that it is ready.
 
-3. In terminal 2, from the package directory, run the dataset:
+3. In terminal 2, from the package directory, activate the client environment and run the dataset:
 
 ```bash
+conda activate vllm-async
 vllm-async-vr \
     --input data/test.jsonl \
     --output results/run-001.jsonl \
@@ -76,7 +100,43 @@ The command prints the paths of the results and run manifest. Predictions are wr
 
 `--timeout` defaults to 30 seconds, `--max-retries` defaults to 5, `--concurrency` defaults to 8, and `--num-chunks` defaults to 30; these execution settings are recorded in the manifest. The runner uses one batch when the dataset has at most `--num-chunks` records, and splits into non-empty batches only when it has more. Requests run concurrently within each batch, subject to the concurrency limit, and batches run in order. A fixed seed helps reproducibility but does not guarantee identical output across model/server versions, hardware, or kernels.
 
+### Make prompts from existing fields
+
+For the review JSONL above, run the same command with templates instead of prebuilt `messages`:
+
+```bash
+vllm-async-vr \
+    --input data/reviews.jsonl \
+    --output results/reviews.jsonl \
+    --base-url http://127.0.0.1:8000/v1 \
+    --model meta-llama/Llama-3.1-8B-Instruct \
+    --max-tokens 128 \
+    --temperature 0 \
+    --top-p 1 \
+    --seed 42 \
+    --user-template 'Product: {product}. Review title: {review[title]}. Review: {review[text]}. Rating: {rating}/5. Classify the sentiment.' \
+    --system-template 'Classify the sentiment of the supplied review.'
+```
+
+Templates use Python format-string syntax: `{field}` selects a top-level field, `{review[text]}` selects a nested object field, and `{items[0]}` selects a list item. Structured values inserted as a whole are rendered as JSON. Literal braces are written as `{{` and `}}`. Missing or invalid template fields produce an error with the input line number before any requests are sent. Output records retain all original data fields and add the rendered `messages` and model `response`. The manifest records the templates used.
+
 ## Python API
+
+`PromptSerializer` can also be used directly when loading data in your own Python pipeline:
+
+```python
+from vllm_async_vr import PromptSerializer
+
+serializer = PromptSerializer(
+    user_template="Review: {review[text]}. Rating: {rating}/5.",
+    system_template="Classify the sentiment.",
+)
+messages = serializer.serialize(
+    {"review": {"text": "The pages are smooth."}, "rating": 5}
+)
+```
+
+The resulting `messages` can be passed to `VLLMChatClient.complete()` or `complete_many()` as shown below.
 
 ```python
 import asyncio
@@ -109,3 +169,4 @@ asyncio.run(main())
 ## Reproducibility notes
 
 Keep the input dataset and generated manifest with the output. The manifest hashes the exact input file bytes, so even changes to whitespace produce a different hash. Record the vLLM version with `--server-version`; also preserve model revision, server launch arguments, hardware, and any custom chat template or server-side configuration externally. The package records the requested model name and decoding parameters but cannot verify which model weights or server configuration the endpoint actually loaded. It does not calculate accuracy or other evaluation metrics.
+ package records the requested model name and decoding parameters but cannot verify which model weights or server configuration the endpoint actually loaded. It does not calculate accuracy or other evaluation metrics.
