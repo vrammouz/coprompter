@@ -1,4 +1,4 @@
-# Prompting Couroutines Package for Accelerated Inference
+# Prompting Couroutines Package for Accelerated Inference with LLMs
 ![vLLM](https://img.shields.io/badge/vLLM-GPU_Inference-FF6F00?style=flat)
 ![OpenAI](https://img.shields.io/badge/LLM-OpenAI-lightgrey) 
 
