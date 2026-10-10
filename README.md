@@ -4,6 +4,27 @@
 
 An installable asynchronous chat client and dataset runner for a running vLLM server's OpenAI-compatible API. It accepts user-provided chat prompts, writes every response in input order, and records a run manifest. It does not start vLLM or score model answers.
 
+## Project structure
+
+```text
+vllm-async-vr/
+├── pyproject.toml                 # Build metadata, dependencies, CLI entry point
+├── README.md                      # Setup, usage, and API guide
+├── src/
+│   └── vllm_async_vr/
+│       ├── __init__.py            # Public package exports
+│       ├── __main__.py            # Enables python -m vllm_async_vr
+│       ├── cli.py                 # Dataset runner and command-line options
+│       ├── client.py              # Async vLLM/OpenAI-compatible API client
+│       ├── serializer.py          # Dataset-record-to-chat-prompt templates
+│       └── py.typed               # Marks inline type information for type checkers
+├── tests/
+│   └── test_serializer.py         # Serializer and dataset-loading tests
+├── data/                          # User-created JSONL inputs (created when needed)
+└── results/                       # Prediction files and manifests (created at runtime)
+```
+
+
 ## Requirements
 
 - Python 3.10 or newer
