@@ -118,6 +118,10 @@ def main() -> None:
         "--system-template",
         help="Optional Python format-string template for a system message; requires --user-template",
     )
+    parser.add_argument(
+        "--assistant-template",
+        help="Optional assistant prefill appended after the user message; requires --user-template",
+    )
     parser.add_argument("--concurrency", type=int, default=8)
     parser.add_argument("--num-chunks", type=int, default=30)
     parser.add_argument("--timeout", type=float, default=30.0)
@@ -130,8 +134,8 @@ def main() -> None:
     parser.add_argument("--overwrite", action="store_true", help="Allow replacing existing output files")
     args = parser.parse_args()
 
-    if args.system_template is not None and args.user_template is None:
-        parser.error("--system-template requires --user-template")
+    if (args.system_template is not None or args.assistant_template is not None) and args.user_template is None:
+        parser.error("--system-template and --assistant-template require --user-template")
 
     if args.max_tokens < 1:
         parser.error("--max-tokens must be at least 1")
@@ -157,7 +161,11 @@ def main() -> None:
     serializer = None
     if args.user_template is not None:
         try:
-            serializer = PromptSerializer(args.user_template, args.system_template)
+            serializer = PromptSerializer(
+                args.user_template,
+                args.system_template,
+                args.assistant_template,
+            )
         except ValueError as error:
             parser.error(str(error))
 
@@ -201,6 +209,7 @@ def main() -> None:
             "mode": "templates" if serializer is not None else "input_messages",
             "user_template": args.user_template,
             "system_template": args.system_template,
+            "assistant_template": args.assistant_template,
         },
         "generation": {
             "max_tokens": args.max_tokens,
