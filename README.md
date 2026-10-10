@@ -33,7 +33,7 @@ Create a JSONL file for any dataset by serializing one record per prompt. Keep t
 
 Follow these steps from the package directory (`code/vllm-async-vr` in this repository). The commands use `meta-llama/Llama-3.1-8B-Instruct` as an example; replace it with a model you can access, using the same model ID when starting vLLM and running the client.
 
-1. Install the client package and create a small JSONL dataset:
+1. Install the client package and create a small test JSONL dataset (optional):
 
 ```bash
 python -m pip install -e .
