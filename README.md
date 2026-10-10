@@ -12,14 +12,14 @@ An installable asynchronous chat client and dataset runner for a running vLLM se
 
 ## Environment setup
 
-Set up the client environment from the package directory (`code/vllm-async-vr` in this repository):
+Set up the client environment from the package directory (`src/coprompter` in this repository):
 
 ```bash
 conda create -n vllm-async python=3.11 -y
 conda activate vllm-async
 python -m pip install --upgrade pip
 python -m pip install -e .
-vllm-async-vr --help
+coprompter --help
 ```
 
 The client environment installs the OpenAI client; it does not install vLLM or CUDA components.
@@ -54,7 +54,7 @@ Keep IDs stable so results can be joined to source examples and labels. Blank li
 
 ## Run
 
-Follow these steps from the package directory (`code/vllm-async-vr` in this repository). The commands use `meta-llama/Llama-3.1-8B-Instruct` as an example; replace it with a model you can access, using the same model ID when starting vLLM and running the client.
+Follow these steps from the package directory (`src/coprompter` in this repository). The commands use `meta-llama/Llama-3.1-8B-Instruct` as an example; replace it with a model you can access, using the same model ID when starting vLLM and running the client.
 
 1. In the activated `vllm-async` Conda environment, create a small JSONL dataset:
 
@@ -83,7 +83,7 @@ Wait for the server to report that it is ready.
 
 ```bash
 conda activate vllm-async
-vllm-async-vr \
+coprompter \
     --input data/test.jsonl \
     --output results/run-001.jsonl \
     --base-url http://127.0.0.1:8000/v1 \
@@ -96,7 +96,7 @@ vllm-async-vr \
     --num-chunks 30
 ```
 
-The command prints the paths of the results and run manifest. Predictions are written to `results/run-001.jsonl`, one JSON record per input with its `id`, `messages`, and generated `response`. The manifest is written to `results/run-001.jsonl.manifest.json` and records the input SHA-256, model, endpoint, generation settings, runtime versions, and execution settings. For an authenticated server, set `OPENAI_API_KEY` in terminal 2 before running the command; the key is not saved in the manifest. Use `vllm-async-vr --help` to see every option.
+The command prints the paths of the results and run manifest. Predictions are written to `results/run-001.jsonl`, one JSON record per input with its `id`, `messages`, and generated `response`. The manifest is written to `results/run-001.jsonl.manifest.json` and records the input SHA-256, model, endpoint, generation settings, runtime versions, and execution settings. For an authenticated server, set `OPENAI_API_KEY` in terminal 2 before running the command; the key is not saved in the manifest. Use `coprompterr --help` to see every option.
 
 `--timeout` defaults to 30 seconds, `--max-retries` defaults to 5, `--concurrency` defaults to 8, and `--num-chunks` defaults to 30; these execution settings are recorded in the manifest. The runner uses one batch when the dataset has at most `--num-chunks` records, and splits into non-empty batches only when it has more. Requests run concurrently within each batch, subject to the concurrency limit, and batches run in order. A fixed seed helps reproducibility but does not guarantee identical output across model/server versions, hardware, or kernels.
 
@@ -105,7 +105,7 @@ The command prints the paths of the results and run manifest. Predictions are wr
 For the review JSONL above, run the same command with templates instead of prebuilt `messages`:
 
 ```bash
-vllm-async-vr \
+coprompter \
     --input data/reviews.jsonl \
     --output results/reviews.jsonl \
     --base-url http://127.0.0.1:8000/v1 \
