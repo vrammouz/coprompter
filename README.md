@@ -15,11 +15,11 @@ An installable asynchronous chat client and dataset runner for a running vLLM se
 Set up the client environment from the package directory (`code/vllm-async-vr` in this repository):
 
 ```bash
-conda create -n vllm-async python=3.11 -y
-conda activate vllm-async
+conda create -n vllm-async-vr python=3.11 -y
+conda activate vllm-async-vr
 python -m pip install --upgrade pip
 python -m pip install -e .
-vllm-async --help
+vllm-async-vr --help
 ```
 
 The client environment installs the OpenAI client; it does not install vLLM or CUDA components.
@@ -56,7 +56,7 @@ Keep IDs stable so results can be joined to source examples and labels. Blank li
 
 Follow these steps from the package directory (`code/vllm-async-vr` in this repository). The commands use `meta-llama/Llama-3.1-8B-Instruct` as an example; replace it with a model you can access, using the same model ID when starting vLLM and running the client.
 
-1. In the activated `vllm-async` Conda environment, create a small JSONL dataset:
+1. In the activated `vllm-async-vr` Conda environment, create a small JSONL dataset:
 
 ```bash
 mkdir -p data results
@@ -82,7 +82,7 @@ Wait for the server to report that it is ready.
 3. In terminal 2, from the package directory, activate the client environment and run the dataset:
 
 ```bash
-conda activate vllm-async
+conda activate vllm-async-vr
 vllm-async-vr \
     --input data/test.jsonl \
     --output results/run-001.jsonl \
@@ -120,6 +120,14 @@ vllm-async-vr \
 
 Templates use Python format-string syntax: `{field}` selects a top-level field, `{review[text]}` selects a nested object field, and `{items[0]}` selects a list item. Structured values inserted as a whole are rendered as JSON. Literal braces are written as `{{` and `}}`. Missing or invalid template fields produce an error with the input line number before any requests are sent. Output records retain all original data fields and add the rendered `messages` and model `response`. The manifest records the templates used.
 
+An optional assistant prefill can be added after the user message with `--assistant-template`. For example, add this flag to the command above to give the model an assistant-role prefix:
+
+```bash
+--assistant-template 'Sentiment:'
+```
+
+The option is omitted by default and requires `--user-template`. It is useful when the model should continue from an assistant prefix; check that the model's chat template supports assistant-prefill messages.
+
 ## Python API
 
 `PromptSerializer` can also be used directly when loading data in your own Python pipeline:
@@ -130,13 +138,14 @@ from vllm_async_vr import PromptSerializer
 serializer = PromptSerializer(
     user_template="Review: {review[text]}. Rating: {rating}/5.",
     system_template="Classify the sentiment.",
+    assistant_template="Sentiment:",  # Optional assistant-role prefill
 )
 messages = serializer.serialize(
     {"review": {"text": "The pages are smooth."}, "rating": 5}
 )
 ```
 
-The resulting `messages` can be passed to `VLLMChatClient.complete()` or `complete_many()` as shown below.
+The resulting `messages` can be passed to `VLLMChatClient.complete()` or `complete_many()` as shown below. Omit `assistant_template` when the model should generate directly after the user message.
 
 ```python
 import asyncio
@@ -169,4 +178,4 @@ asyncio.run(main())
 ## Reproducibility notes
 
 Keep the input dataset and generated manifest with the output. The manifest hashes the exact input file bytes, so even changes to whitespace produce a different hash. Record the vLLM version with `--server-version`; also preserve model revision, server launch arguments, hardware, and any custom chat template or server-side configuration externally. The package records the requested model name and decoding parameters but cannot verify which model weights or server configuration the endpoint actually loaded. It does not calculate accuracy or other evaluation metrics.
- package records the requested model name and decoding parameters but cannot verify which model weights or server configuration the endpoint actually loaded. It does not calculate accuracy or other evaluation metrics.
+
